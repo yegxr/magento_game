@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Крестики-Нолики с ChatGPT</title>
+    <style>
+        #game {
+            text-align: center;
+            margin-top: 50px;
+        }
+        #board {
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-gap: 5px;
+            justify-content: center;
+        }
+        .cell {
+            width: 100px;
+            height: 100px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            border: 1px solid #000;
+            cursor: pointer;
+        }
+        .cell:hover {
+            background-color: #f0f0f0;
+        }
+        .cell.taken {
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+<div id="game">
+    <h1>Крестики-Нолики с ChatGPT</h1>
+    <div id="board">
+    </div>
+    <button onclick="resetGame()">Очистить поле</button>
+    <div id="result"></div>
+</div>
+<script>
+    const boardSize = 3;
+    let gameState = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
+    let isUserTurn = true;
+
+    function initializeBoard() {
+        const board = document.getElementById('board');
+        board.innerHTML = '';
+        for (let row = 0; row < boardSize; row++) {
+            for (let col = 0; col < boardSize; col++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.dataset.row = row;
+                cell.dataset.col = col;
+                cell.onclick = handleCellClick;
+                board.appendChild(cell);
+            }
+        }
+    }
+
+    function handleCellClick(event) {
+        if (!isUserTurn) return;
+        const cell = event.target;
+        const row = cell.dataset.row;
+        const col = cell.dataset.col;
+
+        if (gameState[row][col] !== null) return;
+
+        gameState[row][col] = 'X';
+        cell.innerText = 'X';
+        cell.classList.add('taken');
+        isUserTurn = false;
+
+        if (checkWin('X')) {
+            fetch('/game/index/coupon', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+            })
+                .then(response => response.json())
+                .then(coupon => {
+                    document.getElementById('result').innerText = 'Поздравляю, ваш купон на скидку: ' . coupon.code;
+                });
+            return
+        }
+
+        fetch('/game/index/answerchatgpt', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({ game_state: gameState, move: { row, col } })
+        })
+            .then(response => response.json())
+            .then(data => {
+                isUserTurn = true;
+                updateBoard(data.game_state);
+            });
+    }
+
+    function updateBoard(newGameState) {
+        gameState = newGameState;
+        const cells = document.querySelectorAll('.cell');
+        cells.forEach(cell => {
+            const row = cell.dataset.row;
+            const col = cell.dataset.col;
+            cell.innerText = gameState[row][col];
+            if (gameState[row][col] !== null) {
+                cell.classList.add('taken');
+            }
+        });
+
+        if (checkWin('0')) {
+            document.getElementById('result').innerText = 'ChatGPT выиграл!';
+        }
+    }
+
+    function checkWin(player) {
+        for (let i = 0; i < boardSize; i++) {
+            if (gameState[i].every(cell => cell === player) ||
+                gameState.map(row => row[i]).every(cell => cell === player)) {
+                return true;
+            }
+        }
+        if (gameState[0][0] === player && gameState[1][1] === player && gameState[2][2] === player ||
+            gameState[0][2] === player && gameState[1][1] === player && gameState[2][0] === player) {
+            return true;
+        }
+        return false;
+    }
+
+    function resetGame() {
+        gameState = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
+        isUserTurn = true;
+        document.getElementById('result').innerText = '';
+        initializeBoard();
+    }
+
+    initializeBoard();
+</script>
+</body>
+</html>
