@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<config xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="urn:magento:module:Magento_Config:etc/system_file.xsd">
+    <system>
+        <section id="sales">
+            <group id="chatgpt_game" translate="label" type="text" sortOrder="100" showInDefault="1" showInWebsite="1">
+                <label>Tic-tac toe</label>
+                <field id="chatgpt_api_key" translate="label" sortOrder="1" showInDefault="1" showInWebsite="1" canRestore="1">
+                    <label>Api key</label>
+                </field>
+                <field id="chatgpt_url_key" translate="label" sortOrder="2" showInDefault="1" showInWebsite="1" canRestore="1">
+                    <label>Api url</label>
+                </field>
+            </group>
+        </section>
+    </system>
+</config>

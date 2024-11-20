@@ -56,7 +56,7 @@ class Index extends Action
             return $resultRedirect;
         }
         $customerGroupId = $this->session->getCustomer()->getGroupId();
-        $allowedGroupId = 4;
+        $allowedGroupId = 4; //tic-tac
 
         if ($customerGroupId != $allowedGroupId) {
             $resultRedirect = $this->resultRedirectFactory->create();

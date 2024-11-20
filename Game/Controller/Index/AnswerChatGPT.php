@@ -7,6 +7,9 @@ use Magento\Framework\App\Action\Context;
 use Magento\Framework\Controller\Result\JsonFactory;
 use Magento\Framework\Controller\ResultFactory;
 use Magento\Framework\Exception\LocalizedException;
+use Perspective\Game\Helper\ChatGptApiHelper;
+use Psr\Log\LoggerInterface;
+
 class AnswerChatGPT extends Action
 {
     /**
@@ -15,14 +18,30 @@ class AnswerChatGPT extends Action
     protected JsonFactory $resultJsonFactory;
 
     /**
+     * @var ChatGptApiHelper
+     */
+    protected ChatGptApiHelper $chatGptApiHelper;
+
+    /**
+     * @var LoggerInterface
+     */
+    protected LoggerInterface $logger;
+
+    /**
      * @param Context $context
      * @param JsonFactory $resultJsonFactory
+     * @param ChatGptApiHelper $chatGptApiHelper
+     * @param LoggerInterface $logger
      */
     public function __construct(
         Context $context,
-        JsonFactory $resultJsonFactory
+        JsonFactory $resultJsonFactory,
+        ChatGptApiHelper $chatGptApiHelper,
+        LoggerInterface $logger
     ){
         $this->resultJsonFactory = $resultJsonFactory;
+        $this->chatGptApiHelper = $chatGptApiHelper;
+        $this->logger = $logger;
         parent::__construct($context);
     }
 
@@ -57,8 +76,13 @@ class AnswerChatGPT extends Action
      */
     protected function callChatGPT($gameState, $userMove): mixed
     {
-        $apiKey = 'INPUT GPT KEY';
-        $apiUrl = 'https://api.openai.com/v1/chat/completions';
+        $apiKey = $this->chatGptApiHelper->getGptApi();
+        $apiUrl = $this->chatGptApiHelper->getGptUrl();
+
+        if (empty($apiKey) || empty($apiUrl)) {
+            $this->logger->error('API Key or URL is missing.', ['apiKey' => $apiKey, 'apiUrl' => $apiUrl]);
+            throw new LocalizedException(__('API Key или URL не настроены. Проверьте конфигурацию.'));
+        }
 
         $prompt = $this->generatePrompt($gameState, $userMove);
 
@@ -86,12 +110,31 @@ class AnswerChatGPT extends Action
         ]);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+
         $response = curl_exec($ch);
+
+        if (curl_errno($ch)) {
+            $this->logger->error('cURL error: ' . curl_error($ch));
+            throw new LocalizedException(__('Ошибка при обращении к API ChatGPT.'));
+        }
+
         curl_close($ch);
+
         $decodeResponse = json_decode($response, true);
-        $answer = json_decode($decodeResponse['choices'][0]['message']['content'], true);
-        return $answer;
+        if (isset($decodeResponse['error'])) {
+            $this->logger->error('API error: ' . $decodeResponse['error']['message']);
+            throw new LocalizedException(__('Ошибка от API: %1', $decodeResponse['error']['message']));
+        }
+
+        if (isset($decodeResponse['choices'][0]['message']['content'])) {
+            $answer = json_decode($decodeResponse['choices'][0]['message']['content'], true);
+            return $answer;
+        }
+
+        $this->logger->error('Unexpected API response format', ['response' => $decodeResponse]);
+        throw new LocalizedException(__('Неверный формат ответа от API.'));
     }
+
 
     /**
      * @param $gameState

@@ -1,6 +1,8 @@
 <!DOCTYPE html>
-<html>
+<html lang="ru">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Крестики-Нолики с ChatGPT</title>
     <style>
         #game {
@@ -34,29 +36,55 @@
 <body>
 <div id="game">
     <h1>Крестики-Нолики с ChatGPT</h1>
-    <div id="board">
-    </div>
+    <div id="board"></div>
     <button onclick="resetGame()">Очистить поле</button>
     <div id="result"></div>
 </div>
+
 <script>
     const boardSize = 3;
     let gameState = Array(boardSize).fill(null).map(() => Array(boardSize).fill(null));
     let isUserTurn = true;
 
     function initializeBoard() {
-        const board = document.getElementById('board');
-        board.innerHTML = '';
-        for (let row = 0; row < boardSize; row++) {
-            for (let col = 0; col < boardSize; col++) {
-                const cell = document.createElement('div');
-                cell.className = 'cell';
-                cell.dataset.row = row;
-                cell.dataset.col = col;
-                cell.onclick = handleCellClick;
-                board.appendChild(cell);
+        try {
+            const board = document.getElementById('board');
+            board.innerHTML = '';
+            for (let row = 0; row < boardSize; row++) {
+                for (let col = 0; col < boardSize; col++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+                    cell.onclick = handleCellClick;
+                    board.appendChild(cell);
+                }
             }
+        } catch (error) {
+            logError(error);
+            redirectToHome();
         }
+    }
+
+    function logError(error) {
+        fetch('/game/index/logError', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: JSON.stringify({
+                error:error,
+                timestamp: new Date().toISOString()
+            })
+        }).catch(err => {
+            console.error('Ошибка при отправке данных на сервер для логирования:', err);
+        });
+        console.error(error);
+    }
+
+    function redirectToHome() {
+        window.location.href = '/';
     }
 
     function handleCellClick(event) {
@@ -82,9 +110,13 @@
             })
                 .then(response => response.json())
                 .then(coupon => {
-                    document.getElementById('result').innerText = 'Поздравляю, ваш купон на скидку: ' . coupon.code;
+                    document.getElementById('result').innerText = 'Поздравляю, ваш купон на скидку: ' + coupon.code;
+                })
+                .catch(error => {
+                    logError(error);
+                    redirectToHome();
                 });
-            return
+            return;
         }
 
         fetch('/game/index/answerchatgpt', {
@@ -97,40 +129,70 @@
         })
             .then(response => response.json())
             .then(data => {
+                if (data.error) {
+                    logError('Ошибка при получении ответа от ChatGPT: ' + data.error);
+                    redirectToHome();
+                    return;
+                }
                 isUserTurn = true;
                 updateBoard(data.game_state);
+            })
+            .catch(error => {
+                logError(error);
+                redirectToHome();
             });
     }
 
     function updateBoard(newGameState) {
-        gameState = newGameState;
-        const cells = document.querySelectorAll('.cell');
-        cells.forEach(cell => {
-            const row = cell.dataset.row;
-            const col = cell.dataset.col;
-            cell.innerText = gameState[row][col];
-            if (gameState[row][col] !== null) {
-                cell.classList.add('taken');
-            }
-        });
+        try {
+            gameState = newGameState;
+            const cells = document.querySelectorAll('.cell');
+            cells.forEach(cell => {
+                const row = cell.dataset.row;
+                const col = cell.dataset.col;
+                cell.innerText = gameState[row][col];
+                if (gameState[row][col] !== null) {
+                    cell.classList.add('taken');
+                }
+            });
 
-        if (checkWin('0')) {
-            document.getElementById('result').innerText = 'ChatGPT выиграл!';
+            if (checkWin('0')) {
+                document.getElementById('result').innerText = 'ChatGPT выиграл!';
+            } else if (checkDraw()) {
+                document.getElementById('result').innerText = 'Ничья!';
+            }
+        } catch (error) {
+            logError(error);
+            redirectToHome();
         }
     }
 
     function checkWin(player) {
-        for (let i = 0; i < boardSize; i++) {
-            if (gameState[i].every(cell => cell === player) ||
-                gameState.map(row => row[i]).every(cell => cell === player)) {
+        try {
+            for (let i = 0; i < boardSize; i++) {
+                if (gameState[i].every(cell => cell === player) ||
+                    gameState.map(row => row[i]).every(cell => cell === player)) {
+                    return true;
+                }
+            }
+            if (gameState[0][0] === player && gameState[1][1] === player && gameState[2][2] === player ||
+                gameState[0][2] === player && gameState[1][1] === player && gameState[2][0] === player) {
                 return true;
             }
+            return false;
+        } catch (error) {
+            logError(error);
+            redirectToHome();
         }
-        if (gameState[0][0] === player && gameState[1][1] === player && gameState[2][2] === player ||
-            gameState[0][2] === player && gameState[1][1] === player && gameState[2][0] === player) {
-            return true;
+    }
+
+    function checkDraw() {
+        try {
+            return gameState.every(row => row.every(cell => cell !== null));
+        } catch (error) {
+            logError(error);
+            redirectToHome();
         }
-        return false;
     }
 
     function resetGame() {
@@ -140,7 +202,12 @@
         initializeBoard();
     }
 
-    initializeBoard();
+    try {
+        initializeBoard();
+    } catch (error) {
+        logError(error);
+        redirectToHome();
+    }
 </script>
 </body>
 </html>
